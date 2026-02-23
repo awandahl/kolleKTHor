@@ -1,6 +1,6 @@
 
 
-# kolleor
+# kolleKTHor
 
 kolleKTHor is a command‑line tool for enriching DiVA publication records with missing DOIs by matching against Crossref. It is designed to work for any DiVA portal (KTH, UU, UmU, Lnu, etc.) and to be run in year‑based batches.
 
