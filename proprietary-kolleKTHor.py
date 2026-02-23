@@ -365,8 +365,9 @@ def search_crossref_title(title: str, year: int | None = None, max_results: int 
 
 def lookup_wos_uid_by_doi(doi: str) -> str:
     """
-    Return Web of Science UID (e.g. 'WOS:000361033900013') for a given DOI,
-    using the WoS Starter API. Returns '' if nothing is found or on error.
+    Return Web of Science accession number for a given DOI,
+    without the 'WOS:' prefix, e.g. '000361033900013'.
+    Returns '' if nothing is found or on error.
     """
     if not doi or not WOS_API_KEY or not WOS_LOOKUP_FROM_VERIFIED_DOI:
         return ""
@@ -387,9 +388,13 @@ def lookup_wos_uid_by_doi(doi: str) -> str:
         data = r.json()
         hits = data.get("hits") or []
         if hits:
-            uid = hits[0].get("uid") or ""
-            if uid:
-                print(f"      WoS UID for DOI {doi}: {uid}")
+            raw_uid = hits[0].get("uid") or ""
+            if raw_uid:
+                # strip leading 'WOS:' if present, keep the rest (including leading zeros)
+                uid = raw_uid
+                if uid.upper().startswith("WOS:"):
+                    uid = uid.split(":", 1)[1]
+                print(f"      WoS UID for DOI {doi}: {raw_uid} -> stored as {uid}")
                 return uid
     except Exception as e:
         print(f"      ERROR looking up WoS UID for DOI {doi}: {e}")
