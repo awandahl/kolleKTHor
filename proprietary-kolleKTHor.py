@@ -5,6 +5,7 @@ import pandas as pd
 from tqdm import tqdm  # pip install tqdm
 from urllib.parse import quote
 from datetime import datetime
+import urllib.parse
 
 # -------------------- CONFIG --------------------
 
@@ -25,7 +26,7 @@ NO_ID_ONLY = True     # records with no DOI, no ISI, no Scopus
 SIM_THRESHOLD = 0.9
 MAX_ACCEPTED = 9999
 CROSSREF_ROWS_PER_QUERY = 5
-MAILTO = "aw@kth.se"  # Your email address
+MAILTO = "your@email"  # Your email address
 
 # Verification toggles
 VERIFY_USE_VOLUME = True
@@ -43,6 +44,10 @@ WOS_LOOKUP_FROM_VERIFIED_DOI = True  # toggle this off to disable WoS enrichment
 SCOPUS_API_KEY = ""  # Elsevier / Scopus API key
 SCOPUS_BASE_URL = "https://api.elsevier.com/content/search/scopus"
 SCOPUS_LOOKUP_FROM_VERIFIED_DOI = True # toggle this off to disable Scopus enrichment
+
+NCBI_TOOL = "kolleKTHor"
+NCBI_EMAIL = "your@email"  # Your email address
+PUBMED_LOOKUP_FROM_VERIFIED_DOI = True
 
 # Filenames: portal + year range (+ timestamp for outputs)
 TIMESTAMP = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -430,6 +435,37 @@ def lookup_scopus_eid_by_doi(doi: str) -> str:
                 return eid
     except Exception as e:
         print(f"      ERROR looking up Scopus EID for DOI {doi}: {e}")
+    return ""
+
+# ---- PubMed helper ----
+
+def lookup_pmid_by_doi(doi: str) -> str:
+    """
+    Return PubMed ID (PMID) for a given DOI using NCBI E-utilities (ESearch).
+    Returns '' if nothing is found or on error.
+    """
+    if not doi or not PUBMED_LOOKUP_FROM_VERIFIED_DOI:
+        return ""
+
+    base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    params = {
+        "db": "pubmed",
+        "term": doi,
+        "retmode": "json",
+        "tool": NCBI_TOOL,
+        "email": NCBI_EMAIL,
+    }
+    try:
+        r = requests.get(base, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        idlist = (data.get("esearchresult") or {}).get("idlist") or []
+        if idlist:
+            pmid = idlist[0]
+            print(f"      PubMed ID for DOI {doi}: {pmid}")
+            return pmid
+    except Exception as e:
+        print(f"      ERROR looking up PMID for DOI {doi}: {e}")
     return ""
 
 # ---- Link builders ----
