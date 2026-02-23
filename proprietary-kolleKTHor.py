@@ -5,13 +5,11 @@ import pandas as pd
 from tqdm import tqdm  # pip install tqdm
 from urllib.parse import quote
 from datetime import datetime
-import json
-import requests
 
 # -------------------- CONFIG --------------------
 
-FROM_YEAR = 1992
-TO_YEAR = 1992
+FROM_YEAR = 1999
+TO_YEAR = 1999
 
 # which DiVA portal to use: e.g. "kth", "uu", "umu", "lnu", etc.
 DIVA_PORTAL = "kth"
@@ -27,11 +25,7 @@ NO_ID_ONLY = True     # records with no DOI, no ISI, no Scopus
 SIM_THRESHOLD = 0.9
 MAX_ACCEPTED = 9999
 CROSSREF_ROWS_PER_QUERY = 5
-MAILTO = "email@domain.com"  # Your email address
-
-WOS_API_KEY = "PUT_YOUR_KEY_HERE"  # Clarivate Web of Science Starter API key
-WOS_BASE_URL = "https://api.clarivate.com/apis/wos-starter/v1/documents"
-WOS_LOOKUP_FROM_VERIFIED_DOI = True  # toggle
+MAILTO = "aw@kth.se"  # Your email address
 
 # Verification toggles
 VERIFY_USE_VOLUME = True
@@ -40,14 +34,18 @@ VERIFY_USE_PAGES = True      # start+end as a pair
 VERIFY_USE_ISSN = True       # any ISSN match
 VERIFY_USE_AUTHORS = True    # require at least one overlapping surname
 
+# Web of Science Starter API (optional)
+WOS_API_KEY = ""  # put your Clarivate Web of Science Starter API key here
+WOS_BASE_URL = "https://api.clarivate.com/apis/wos-starter/v1/documents"
+WOS_LOOKUP_FROM_VERIFIED_DOI = True  # toggle this off to disable WoS enrichment
+
 # Filenames: portal + year range (+ timestamp for outputs)
 TIMESTAMP = datetime.now().strftime("%Y%m%d-%H%M%S")
 PREFIX = f"{DIVA_PORTAL}_{FROM_YEAR}-{TO_YEAR}"
 
-DOWNLOADED_CSV = f"{PREFIX}_diva_raw.csv"                 # input snapshot
-OUTPUT_CSV = f"{PREFIX}_doi_candidates_{TIMESTAMP}.csv"   # output with timestamp
-EXCEL_OUT = f"{PREFIX}_doi_candidates_links_{TIMESTAMP}.xlsx"
-
+DOWNLOADED_CSV = f"{PREFIX}_diva_raw.csv"                     # input snapshot
+OUTPUT_CSV = f"{PREFIX}_doi_candidates_{TIMESTAMP}.csv"       # output with timestamp
+EXCEL_OUT = f"{PREFIX}_doi_candidates_links_{TIMESTAMP}.xlsx" # output with timestamp
 
 # -------------------- HELPERS --------------------
 
@@ -135,6 +133,7 @@ def diva_pubtype_category(diva_type: str) -> str | None:
     if t == "book":
         return "book"
     if t == "chapter":
+":
         return "chapter"
     if t == "review":
         return "article"
@@ -157,40 +156,6 @@ def crossref_type_category(cr_type: str | None) -> str | None:
     if t in {"journal-review", "peer-review"}:
         return "article"
     return None
-
-# ---- WoS helpers ----
-
-def lookup_wos_uid_by_doi(doi: str) -> str:
-    """
-    Return Web of Science UID (e.g. 'WOS:000361033900013') for a given DOI,
-    using the WoS Starter API. Returns '' if nothing is found or on error.
-    """
-    if not doi or not WOS_API_KEY or not WOS_LOOKUP_FROM_VERIFIED_DOI:
-        return ""
-
-    params = {
-        "db": "WOS",
-        "q": f"DO={doi}",
-        "limit": 1,
-        "page": 1,
-    }
-    headers = {
-        "accept": "application/json",
-        "X-ApiKey": WOS_API_KEY,
-    }
-    try:
-        r = requests.get(WOS_BASE_URL, headers=headers, params=params, timeout=20)
-        r.raise_for_status()
-        data = r.json()
-        hits = data.get("hits") or []
-        if hits:
-            uid = hits[0].get("uid") or ""
-            if uid:
-                print(f"      WoS UID for DOI {doi}: {uid}")
-                return uid
-    except Exception as e:
-        print(f"      ERROR looking up WoS UID for DOI {doi}: {e}")
-    return ""
 
 # ---- Author helpers ----
 
@@ -391,6 +356,40 @@ def search_crossref_title(title: str, year: int | None = None, max_results: int 
         if doi:
             results.append((doi, cand_title, cand_year, cr_type))
     return results
+
+# ---- Web of Science helper ----
+
+def lookup_wos_uid_by_doi(doi: str) -> str:
+    """
+    Return Web of Science UID (e.g. 'WOS:000361033900013') for a given DOI,
+    using the WoS Starter API. Returns '' if nothing is found or on error.
+    """
+    if not doi or not WOS_API_KEY or not WOS_LOOKUP_FROM_VERIFIED_DOI:
+        return ""
+
+    params = {
+        "db": "WOS",
+        "q": f"DO={doi}",
+        "limit": 1,
+        "page": 1,
+    }
+    headers = {
+        "accept": "application/json",
+        "X-ApiKey": WOS_API_KEY,
+    }
+    try:
+        r = requests.get(WOS_BASE_URL, headers=headers, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        hits = data.get("hits") or []
+        if hits:
+            uid = hits[0].get("uid") or ""
+            if uid:
+                print(f"      WoS UID for DOI {doi}: {uid}")
+                return uid
+    except Exception as e:
+        print(f"      ERROR looking up WoS UID for DOI {doi}: {e}")
+    return ""
 
 # ---- Link builders ----
 
@@ -605,10 +604,12 @@ def main():
                     f"  ✓✓✓ ACCEPT VERIFIED DOI={best_verified_doi} "
                     f"(sim={best_verified_score:.3f}, year={best_year_verified})"
                 )
-            if WOS_LOOKUP_FROM_VERIFIED_DOI:
-                wos_uid = lookup_wos_uid_by_doi(best_verified_doi)
-                if wos_uid:
-                    df_work.at[idx, "ISI"] = wos_uid
+
+                # Optional: look up Web of Science UID (ISI) when Verified DOI is found
+                if not isi and WOS_LOOKUP_FROM_VERIFIED_DOI:
+                    wos_uid = lookup_wos_uid_by_doi(best_verified_doi)
+                    if wos_uid:
+                        df_work.at[idx, "ISI"] = wos_uid
 
             elif best_possible_doi:
                 df_work.at[idx, "Possible DOI:s"] = best_possible_doi
