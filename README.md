@@ -1,161 +1,147 @@
+
+
 # KonnecTHor
 
+KonnecTHor is a command‑line tool for enriching DiVA publication records with missing DOIs by matching against Crossref. It is designed to work for any DiVA portal (KTH, UU, UmU, Lnu, etc.) and to be run in year‑based batches.
 
+The tool uses title, year, publication type, bibliographic metadata (volume/issue/pages, ISSN) and, when available, overlapping author surnames to identify high‑confidence DOI matches.
 
-KonnecTHor is a command‑line tool that downloads DiVA records, finds missing DOIs via Crossref, and outputs candidate and verified DOIs with linkable identifiers. To use it for another DiVA library you mainly change the portal code and year range.
+## Features
 
-## Main features
+- **DiVA integration**
+    - Connects to any DiVA portal’s `/smash/export.jsf` endpoint.
+    - Filters on publication year (`FROM_YEAR`–`TO_YEAR`).
+    - Restricts to selected publication types via `publicationTypeCode` (article, chapter, conference paper, book, review, book review).
+    - Exports a configurable set of fields, including `Name` for authors.
+- **Flexible identifier selection**
+    - Processes only records that match your chosen identifier pattern:
+        - `NO_ID_ONLY = True`: no DOI, no ISI, no ScopusId.
+        - `SCOPUS_ONLY = True`: ScopusId only.
+        - `ISI_ONLY = True`: ISI only.
+        - `BOTH_TYPES = True`: Scopus‑only or ISI‑only.
+- **Title and publication‑type aware Crossref search**
+    - Queries Crossref by title and publication year.
+    - Uses token‑based Jaccard similarity with a configurable threshold (`SIM_THRESHOLD`, default 0.9).
+    - Maps DiVA `PublicationType` and Crossref `type` into coarse categories (article, conference, book, chapter) and **rejects mismatches**.
+- **Verification using bibliographic metadata and authors**
+For each promising DOI candidate from Crossref, KonnecTHor optionally checks:
+    - Volume (`VERIFY_USE_VOLUME`)
+    - Issue (`VERIFY_USE_ISSUE`)
+    - Start/end pages (`VERIFY_USE_PAGES`)
+    - ISSNs (`VERIFY_USE_ISSN`)
+    - Author surnames (`VERIFY_USE_AUTHORS`)
 
-- **Works with any DiVA portal**
-You set `DIVA_PORTAL = "kth"` / `"uu"` / `"umu"` / `"lnu"` etc., and the script calls that portal’s `/smash/export.jsf` API to get a CSV of publications for a given year range and a fixed set of publication types (article, chapter, conference paper, book, review, book review).
-- **Flexible year slices and file naming**
-`FROM_YEAR` and `TO_YEAR` define which publication years to include.
-Output files are prefixed with the range, e.g.:
-    - `1900-1995_diva_raw.csv` – DiVA export.
-    - `1900-1995_doi_candidates.csv` – records with proposed/verified DOIs.
-    - `1900-1995_doi_candidates_links.xlsx` – same rows with clickable links.
-- **Identifier‑based selection of rows to process**
-
-After loading the CSV, the script builds masks:
-    - `has_doi`, `has_isi`, `has_scopus` from the corresponding columns.
-    - `no_id_mask` = no DOI, no ISI, no Scopus.
-    - `scopus_only_mask`, `isi_only_mask`.
-
-With your current settings:
-    - `NO_ID_ONLY = True`
-    - `SCOPUS_ONLY = False`, `ISI_ONLY = False`, `BOTH_TYPES = False`
-
-it will only process **records that have no DOI, no ISI, and no ScopusId** (purely “unidentified” items).
-- **High‑precision title matching**
-
-For each working row, KonnecTHor:
-    - Queries Crossref `/works` with the **title** and **publication year**.
-    - Computes a **Jaccard similarity** on tokenized titles.
-    - Only considers candidates with similarity ≥ `SIM_THRESHOLD` (0.9), i.e. almost identical titles.
-- **Publication‑type consistency**
-    - DiVA’s `PublicationType` (e.g. `article`, `conferencePaper`, `book`, `chapter`, `review`, `bookReview`) is mapped to a coarse category (article, conference, book, chapter).
-    - Crossref’s `type` (e.g. `journal-article`, `proceedings-article`, `book`, `book-chapter`) is mapped to the same set.
-    - Candidates whose category doesn’t match DiVA’s category are skipped.
-This ensures e.g. journal articles are only matched to Crossref journal articles, chapters to book chapters, etc.
-- **Verification using volume/issue/pages/ISSNs**
-
-For each title‑match candidate, the script optionally “upgrades” it from **Possible DOI** to **Verified DOI** if the Crossref metadata agrees with DiVA on:
-    - Volume (`VERIFY_USE_VOLUME`),
-    - Issue (`VERIFY_USE_ISSUE`),
-    - Start/End pages (`VERIFY_USE_PAGES`),
-    - ISSNs (`VERIFY_USE_ISSN`).
-
-It fetches full Crossref metadata for the DOI, extracts volume/issue/page range and ISSN set, and prints a per‑field comparison. A candidate is marked as **verified** only if all enabled checks that have data match.
-- **Two DOI statuses**
-
-For each DiVA record the script may fill:
-    - `Verified DOI` – high‑confidence match (title + type + biblio/ISSN checks).
-    - `Possible DOI:s` – good title/type match but verification did not fully pass (or no detailed metadata was available).
+A candidate becomes a **Verified DOI** only if all enabled checks that have data pass:
+    - ISSN and volume/issue/pages must match (where present).
+    - If `VERIFY_USE_AUTHORS = True`, there must be at least one overlapping surname between DiVA and Crossref.
+- **Author parsing from DiVA**
+    - Reads the DiVA `Name` column, which contains authors in the form:
+`Family, Given [local-id] (affiliations…);Next, Author [...]`
+    - Extracts clean display names (`Family, Given`) for reference work.
+    - Derives author surnames (family names) for matching against `author[].family` from Crossref.
+- **Two DOI outcome levels**
+    - `Verified DOI`: strong match (title, type, year, and all enabled verification checks).
+    - `Possible DOI:s`: good title/type match, but one or more verification checks missing or not fully convincing.
 - **Rich outputs with links**
-
-The final Excel file adds link columns:
-    - `PID_link` – DiVA record page.
-    - `Possible_DOI_link`, `Verified_DOI_link` – `https://doi.org/...`.
-    - `ISI_link` – Web of Science full record.
-    - `Scopus_link` – Scopus record.
-
-These cells are proper Excel hyperlinks; clicking them opens the identifier targets in your browser.
-
-
-## How to use KonnecTHor for another DiVA library
-
-You only need to change a few configuration values and rerun.
-
-### 1. Point to the other DiVA portal
-
-Set:
-
-```python
-DIVA_PORTAL = "uu"   # for Uppsala
-# or "umu", "lnu", "bth", etc.
-```
-
-The script automatically builds:
-
-```python
-DIVA_BASE = f"https://{DIVA_PORTAL}.diva-portal.org/smash/export.jsf"
-```
-
-and uses that to export publications from that local DiVA.
-
-### 2. Choose year range and identifier strategy
-
-Set the publication years you want to process:
-
-```python
-FROM_YEAR = 2000
-TO_YEAR = 2009
-```
-
-Decide which records to target:
-
-- Only items with **no DOI, no ISI, no Scopus** (current behavior):
-
-```python
-NO_ID_ONLY = True
-SCOPUS_ONLY = False
-ISI_ONLY = False
-BOTH_TYPES = False
-```
-
-- Only Scopus‑only items:
-
-```python
-NO_ID_ONLY = False
-SCOPUS_ONLY = True
-ISI_ONLY = False
-BOTH_TYPES = False
-```
-
-- Only ISI‑only items:
-
-```python
-NO_ID_ONLY = False
-SCOPUS_ONLY = False
-ISI_ONLY = True
-BOTH_TYPES = False
-```
-
-- Scopus‑only **or** ISI‑only:
-
-```python
-NO_ID_ONLY = False
-BOTH_TYPES = True
-SCOPUS_ONLY = False
-ISI_ONLY = False
-```
+For each year range, KonnecTHor produces:
+    - `{FROM}-{TO}_diva_raw.csv` – raw DiVA export for that slice.
+    - `{FROM}-{TO}_doi_candidates.csv` – all records with either a verified or possible DOI.
+    - `{FROM}-{TO}_doi_candidates_links.xlsx` – same rows, with clickable URLs for:
+        - DiVA record (PID)
+        - Possible / Verified DOI
+        - ISI (Web of Science)
+        - ScopusId
 
 
-Then run:
+## Installation
 
 ```bash
-python3 konnecthor.py
+git clone https://github.com/your-org/konnecthor.git
+cd konnecthor
+pip install -r requirements.txt
+```
+
+Requirements (typical):
+
+- Python 3.9+
+- `requests`, `pandas`, `tqdm`, `xlsxwriter`
+
+
+## Configuration
+
+All configuration is in the script header:
+
+```python
+FROM_YEAR = 1999
+TO_YEAR = 1999
+
+DIVA_PORTAL = "kth"   # e.g. "kth", "uu", "umu", "lnu"
+
+SCOPUS_ONLY = False
+ISI_ONLY = False
+BOTH_TYPES = False
+NO_ID_ONLY = True
+
+SIM_THRESHOLD = 0.9
+MAX_ACCEPTED = 9999
+CROSSREF_ROWS_PER_QUERY = 5
+MAILTO = "your.email@example.org"
+
+VERIFY_USE_VOLUME = True
+VERIFY_USE_ISSUE = True
+VERIFY_USE_PAGES = True
+VERIFY_USE_ISSN = True
+VERIFY_USE_AUTHORS = True
+```
+
+Change `DIVA_PORTAL` to target another DiVA library (e.g. `"uu"` for Uppsala). Adjust `FROM_YEAR`/`TO_YEAR` to define the publication year slice to process.
+
+If you do not want to use authors as a verification criterion, set:
+
+```python
+VERIFY_USE_AUTHORS = False
 ```
 
 
-### 3. Review and use the outputs
+## Usage
 
-After each run you get, for that portal and year slice:
+1. **Edit configuration**
 
-- `{FROM}-{TO}_diva_raw.csv` – the raw export (good for debugging fields).
-- `{FROM}-{TO}_doi_candidates.csv` – rows where KonnecTHor found either a verified or possible DOI.
-- `{FROM}-{TO}_doi_candidates_links.xlsx` – same rows with convenient hyperlinks.
+Open the script and set:
+    - `DIVA_PORTAL` to the desired portal code.
+    - `FROM_YEAR` and `TO_YEAR` for the publication years of interest.
+    - Identifier selection flags (`NO_ID_ONLY`, `SCOPUS_ONLY`, `ISI_ONLY`, `BOTH_TYPES`).
+    - Verification toggles as needed.
+2. **Run KonnecTHor**
 
-Typical workflow for a new DiVA library:
+```bash
+python konnecthor.py
+```
 
-1. Run a **test slice** (e.g. 1–2 years) and inspect the Excel file to see if:
-    - Publication types line up correctly (e.g. `article`, `conferencePaper` etc. really mean the same as in DiVA).
-    - The verification checks (volume/issue/pages/ISSN) are not too strict for that portal’s data quality.
-2. If needed, adjust:
-    - `SIM_THRESHOLD` if titles are consistently slightly off (e.g. 0.85 instead of 0.9).
-    - Verification toggles, e.g. disable `VERIFY_USE_PAGES` if page data is unreliable for that library.
-    - `diva_pubtype_category` if the portal uses slightly different `PublicationType` labels.
-3. Once satisfied, run KonnecTHor over larger year blocks for that portal.
+3. **Review output**
+    - Inspect `{FROM}-{TO}_doi_candidates.csv` and the corresponding Excel file.
+    - Use the link columns to quickly check DiVA, Crossref, Scopus, and Web of Science.
+    - Decide which `Verified DOI` and `Possible DOI:s` to feed back into DiVA (manually or via an import process).
 
-Because it relies only on the standard DiVA export API and Crossref’s REST API, the same script works across all DiVA member libraries with minimal, configuration‑only changes.
+### Typical workflows
+
+- **Backfill a historical period**
+Run in slices (e.g. 1990–1994, 1995–1999) with `NO_ID_ONLY = True` to find DOIs for older records that lack any identifiers.
+- **Clean up Scopus‑only / ISI‑only records**
+Set `NO_ID_ONLY = False` and enable `SCOPUS_ONLY`, `ISI_ONLY`, or `BOTH_TYPES` to turn existing Scopus/ISI‑only records into DOI‑identified records.
+- **Deploy for another DiVA institution**
+    - Change `DIVA_PORTAL`.
+    - Test on a small year range to confirm that publication types, year parsing, and identifier patterns look correct.
+    - Adjust verification toggles if volume/issue/pages or ISSN data are less reliable in that portal.
+
+
+## Limitations
+
+- Relies on DiVA’s export API and Crossref’s metadata; incomplete or inconsistent data on either side may prevent verification.
+- Author matching uses only surnames and assumes DiVA `Name` follows the `Family, Given` convention.
+- Very old publications and non‑journal items may lack enough structured metadata for full verification.
+
+***
+
+
 
