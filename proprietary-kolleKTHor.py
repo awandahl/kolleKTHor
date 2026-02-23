@@ -395,6 +395,38 @@ def lookup_wos_uid_by_doi(doi: str) -> str:
         print(f"      ERROR looking up WoS UID for DOI {doi}: {e}")
     return ""
 
+# ---- Scopus helper ----
+
+def lookup_scopus_eid_by_doi(doi: str) -> str:
+    """
+    Return Scopus EID (e.g. '2-s2.0-84939694271') for a given DOI,
+    using the Scopus Search API. Returns '' if nothing is found or on error.
+    """
+    if not doi or not SCOPUS_API_KEY or not SCOPUS_LOOKUP_FROM_VERIFIED_DOI:
+        return ""
+
+    params = {
+        "query": f"doi({doi})",
+        "count": 1,
+    }
+    headers = {
+        "accept": "application/json",
+        "X-ELS-APIKey": SCOPUS_API_KEY,
+    }
+    try:
+        r = requests.get(SCOPUS_BASE_URL, headers=headers, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        entries = (data.get("search-results") or {}).get("entry") or []
+        if entries:
+            eid = entries[0].get("eid") or ""
+            if eid:
+                print(f"      Scopus EID for DOI {doi}: {eid}")
+                return eid
+    except Exception as e:
+        print(f"      ERROR looking up Scopus EID for DOI {doi}: {e}")
+    return ""
+
 # ---- Link builders ----
 
 def make_scopus_url(eid: str) -> str:
