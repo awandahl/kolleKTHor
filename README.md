@@ -147,7 +147,7 @@ Set `NO_ID_ONLY = False` and enable `SCOPUS_ONLY`, `ISI_ONLY`, or `BOTH_TYPES` t
 
 This project is licensed under the MIT License.
 
-Copyright (c) 2025 Anders Wändahl KTH Library
+Copyright (c) 2025 Anders Wändahl
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the “Software”), to deal
