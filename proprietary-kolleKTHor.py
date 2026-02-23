@@ -39,6 +39,11 @@ WOS_API_KEY = ""  # put your Clarivate Web of Science Starter API key here
 WOS_BASE_URL = "https://api.clarivate.com/apis/wos-starter/v1/documents"
 WOS_LOOKUP_FROM_VERIFIED_DOI = True  # toggle this off to disable WoS enrichment
 
+# Scopus Search API (optional)
+SCOPUS_API_KEY = ""  # Elsevier / Scopus API key
+SCOPUS_BASE_URL = "https://api.elsevier.com/content/search/scopus"
+SCOPUS_LOOKUP_FROM_VERIFIED_DOI = True # toggle this off to disable Scopus enrichment
+
 # Filenames: portal + year range (+ timestamp for outputs)
 TIMESTAMP = datetime.now().strftime("%Y%m%d-%H%M%S")
 PREFIX = f"{DIVA_PORTAL}_{FROM_YEAR}-{TO_YEAR}"
