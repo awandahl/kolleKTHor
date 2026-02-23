@@ -694,6 +694,12 @@ def main():
                     if eid:
                         df_work.at[idx, "ScopusId"] = eid
 
+                # Optional: PubMed PMID enrichment
+                if PUBMED_LOOKUP_FROM_VERIFIED_DOI and not row.get("PMID", "").strip():
+                    pmid = lookup_pmid_by_doi(best_verified_doi)
+                    if pmid:
+                        df_work.at[idx, "PMID"] = pmid
+
             elif best_possible_doi:
                 df_work.at[idx, "Possible DOI:s"] = best_possible_doi
                 df_work.at[idx, "Verified DOI"] = ""
