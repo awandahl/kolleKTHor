@@ -112,6 +112,7 @@ Open the script and set:
     - `FROM_YEAR` and `TO_YEAR` for the publication years of interest.
     - Identifier selection flags (`NO_ID_ONLY`, `SCOPUS_ONLY`, `ISI_ONLY`, `BOTH_TYPES`).
     - Verification toggles as needed.
+    
 2. **Run kolleKTHor**
 
 ```bash
