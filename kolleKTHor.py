@@ -25,7 +25,7 @@ NO_ID_ONLY = True     # records with no DOI, no ISI, no Scopus
 SIM_THRESHOLD = 0.9
 MAX_ACCEPTED = 9999
 CROSSREF_ROWS_PER_QUERY = 5
-MAILTO = "aw@kth.se"  # Your email address
+MAILTO = "email@domain.com"  # Your email address
 
 # Verification toggles
 VERIFY_USE_VOLUME = True
