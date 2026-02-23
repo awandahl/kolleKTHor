@@ -27,6 +27,10 @@ MAX_ACCEPTED = 9999
 CROSSREF_ROWS_PER_QUERY = 5
 MAILTO = "email@domain.com"  # Your email address
 
+WOS_API_KEY = "PUT_YOUR_KEY_HERE"  # Clarivate Web of Science Starter API key
+WOS_BASE_URL = "https://api.clarivate.com/apis/wos-starter/v1/documents"
+WOS_LOOKUP_FROM_VERIFIED_DOI = True  # toggle
+
 # Verification toggles
 VERIFY_USE_VOLUME = True
 VERIFY_USE_ISSUE = True
