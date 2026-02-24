@@ -196,7 +196,7 @@ Exempel för KTH och år 2025 med tidsstämpel `20260224-111530`:
 1. Bygger en DiVA‑URL med årfilter och publikationstyper.
 2. Laddar ner CSV‑filen (`*_diva_raw.csv`).
 3. Filtrerar rader enligt:
-    - årintervall
+    - årsintervall
     - titel ej tom
     - typ (artiklar, kapitel, konferensbidrag, böcker, recensioner)
     - vald identifierarkombination (NO_ID_ONLY, SCOPUS_ONLY, ISI_ONLY, BOTH_TYPES).
