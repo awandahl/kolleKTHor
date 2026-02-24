@@ -14,7 +14,7 @@ Verktyget fungerar mot valfri DiVA-portal (t.ex. `kth`, `uu`, `umu`, `lnu`) och 
 
 ## Huvudidé
 
-1. Hämta publikationer från DiVA via export‑API:et för ett givet årintervall.
+1. Hämta publikationer från DiVA via export‑API:et för ett givet årsintervall.
 2. Filtrera fram poster utan DOI (och ev. utan ISI/Scopus, beroende på inställningar).
 3. Söka motsvarande poster i Crossref via titel + år.
 4. Säkerställa träffar med:
@@ -193,7 +193,7 @@ Exempel för KTH och år 2025 med tidsstämpel `20260224-111530`:
 
 ## Hur skriptet arbetar (översikt)
 
-1. Bygger en DiVA‑URL med årfilter och publikationstyper.
+1. Bygger en DiVA‑URL med årsfilter och publikationstyper.
 2. Laddar ner CSV‑filen (`*_diva_raw.csv`).
 3. Filtrerar rader enligt:
     - årsintervall
