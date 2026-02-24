@@ -5,11 +5,12 @@ import pandas as pd
 from tqdm import tqdm  # pip install tqdm
 from urllib.parse import quote
 from datetime import datetime
+import urllib.parse
 
 # -------------------- CONFIG --------------------
 
-FROM_YEAR = 1992
-TO_YEAR = 1992
+FROM_YEAR = 2025
+TO_YEAR = 2025
 
 # which DiVA portal to use: e.g. "kth", "uu", "umu", "lnu", etc.
 DIVA_PORTAL = "kth"
@@ -34,14 +35,32 @@ VERIFY_USE_PAGES = True      # start+end as a pair
 VERIFY_USE_ISSN = True       # any ISSN match
 VERIFY_USE_AUTHORS = True    # require at least one overlapping surname
 
+# High-level feature flags for proprietary databases
+USE_PROPRIETARY_WOS = True
+USE_PROPRIETARY_SCOPUS = True
+
+# Web of Science Starter API (optional, controlled by feature flag)
+WOS_API_KEY = "*****"  # put your Clarivate Web of Science Starter API key here
+WOS_BASE_URL = "https://api.clarivate.com/apis/wos-starter/v1/documents"
+WOS_LOOKUP_FROM_VERIFIED_DOI = USE_PROPRIETARY_WOS  # derived from feature flag
+
+# Scopus Search API (optional, controlled by feature flag)
+SCOPUS_API_KEY = "*****"  # Elsevier / Scopus API key
+SCOPUS_BASE_URL = "https://api.elsevier.com/content/search/scopus"
+SCOPUS_LOOKUP_FROM_VERIFIED_DOI = USE_PROPRIETARY_SCOPUS  # derived from feature flag
+
+# PubMed (NCBI E-utilities)
+NCBI_TOOL = "kolleKTHor"
+NCBI_EMAIL = "email@domain.com"  # Your email address
+PUBMED_LOOKUP_FROM_VERIFIED_DOI = True
+
 # Filenames: portal + year range (+ timestamp for outputs)
 TIMESTAMP = datetime.now().strftime("%Y%m%d-%H%M%S")
 PREFIX = f"{DIVA_PORTAL}_{FROM_YEAR}-{TO_YEAR}"
 
-DOWNLOADED_CSV = f"{PREFIX}_diva_raw.csv"                 # input snapshot
-OUTPUT_CSV = f"{PREFIX}_doi_candidates_{TIMESTAMP}.csv"   # output with timestamp
-EXCEL_OUT = f"{PREFIX}_doi_candidates_links_{TIMESTAMP}.xlsx"
-
+DOWNLOADED_CSV = f"{PREFIX}_diva_raw.csv"                     # input snapshot
+OUTPUT_CSV = f"{PREFIX}_doi_candidates_{TIMESTAMP}.csv"       # output with timestamp
+EXCEL_OUT = f"{PREFIX}_doi_candidates_links_{TIMESTAMP}.xlsx" # output with timestamp
 
 # -------------------- HELPERS --------------------
 
@@ -352,6 +371,108 @@ def search_crossref_title(title: str, year: int | None = None, max_results: int 
             results.append((doi, cand_title, cand_year, cr_type))
     return results
 
+# ---- Web of Science helper ----
+
+def lookup_wos_uid_by_doi(doi: str) -> str:
+    """
+    Return Web of Science accession number for a given DOI,
+    without the 'WOS:' prefix, e.g. '000361033900013'.
+    Returns '' if nothing is found or on error.
+    """
+    if not doi or not WOS_API_KEY or not WOS_LOOKUP_FROM_VERIFIED_DOI:
+        return ""
+
+    params = {
+        "db": "WOS",
+        "q": f"DO={doi}",
+        "limit": 1,
+        "page": 1,
+    }
+    headers = {
+        "accept": "application/json",
+        "X-ApiKey": WOS_API_KEY,
+    }
+    try:
+        r = requests.get(WOS_BASE_URL, headers=headers, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        hits = data.get("hits") or []
+        if hits:
+            raw_uid = hits[0].get("uid") or ""
+            if raw_uid:
+                # strip leading 'WOS:' if present, keep the rest (including leading zeros)
+                uid = raw_uid
+                if uid.upper().startswith("WOS:"):
+                    uid = uid.split(":", 1)[1]
+                print(f"      WoS UID for DOI {doi}: {raw_uid} -> stored as {uid}")
+                return uid
+    except Exception as e:
+        print(f"      ERROR looking up WoS UID for DOI {doi}: {e}")
+    return ""
+
+# ---- Scopus helper ----
+
+def lookup_scopus_eid_by_doi(doi: str) -> str:
+    """
+    Return Scopus EID (e.g. '2-s2.0-84939694271') for a given DOI,
+    using the Scopus Search API. Returns '' if nothing is found or on error.
+    """
+    if not doi or not SCOPUS_API_KEY or not SCOPUS_LOOKUP_FROM_VERIFIED_DOI:
+        return ""
+
+    params = {
+        "query": f"doi({doi})",
+        "count": 1,
+    }
+    headers = {
+        "accept": "application/json",
+        "X-ELS-APIKey": SCOPUS_API_KEY,
+    }
+    try:
+        r = requests.get(SCOPUS_BASE_URL, headers=headers, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        entries = (data.get("search-results") or {}).get("entry") or []
+        if entries:
+            eid = entries[0].get("eid") or ""
+            if eid:
+                print(f"      Scopus EID for DOI {doi}: {eid}")
+                return eid
+    except Exception as e:
+        print(f"      ERROR looking up Scopus EID for DOI {doi}: {e}")
+    return ""
+
+# ---- PubMed helper ----
+
+def lookup_pmid_by_doi(doi: str) -> str:
+    """
+    Return PubMed ID (PMID) for a given DOI using NCBI E-utilities (ESearch).
+    Returns '' if nothing is found or on error.
+    """
+    if not doi or not PUBMED_LOOKUP_FROM_VERIFIED_DOI:
+        return ""
+
+    base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    params = {
+        "db": "pubmed",
+        "term": doi,
+        "retmode": "json",
+        "tool": NCBI_TOOL,
+        "email": NCBI_EMAIL,
+    }
+    try:
+        r = requests.get(base, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        idlist = (data.get("esearchresult") or {}).get("idlist") or []
+        if idlist:
+            pmid = idlist[0]
+            print(f"      PubMed ID for DOI {doi}: {pmid}")
+            return pmid
+    except Exception as e:
+        print(f"      ERROR looking up PMID for DOI {doi}: {e}")
+    return ""
+
 # ---- Link builders ----
 
 def make_scopus_url(eid: str) -> str:
@@ -370,10 +491,12 @@ def make_isi_url(isi: str) -> str:
     isi = isi.strip()
     if not isi:
         return ""
+    # we store only the numeric part; add 'WOS:' back for the URL
+    full = "WOS:" + isi
     return (
         "https://gateway.webofknowledge.com/api/gateway"
         "?GWVersion=2&SrcAuth=Name&SrcApp=sfx&DestApp=WOS"
-        "&DestLinkType=FullRecord&KeyUT=" + requests.utils.quote(isi, safe="")
+        "&DestLinkType=FullRecord&KeyUT=" + requests.utils.quote(full, safe="")
     )
 
 def make_pid_url(pid: str) -> str:
@@ -565,6 +688,25 @@ def main():
                     f"  ✓✓✓ ACCEPT VERIFIED DOI={best_verified_doi} "
                     f"(sim={best_verified_score:.3f}, year={best_year_verified})"
                 )
+
+                # Optional: look up Web of Science UID (ISI) when Verified DOI is found
+                if not isi and WOS_LOOKUP_FROM_VERIFIED_DOI:
+                    wos_uid = lookup_wos_uid_by_doi(best_verified_doi)
+                    if wos_uid:
+                        df_work.at[idx, "ISI"] = wos_uid
+
+                # Optional: Scopus EID enrichment
+                if not scopus and SCOPUS_LOOKUP_FROM_VERIFIED_DOI:
+                    eid = lookup_scopus_eid_by_doi(best_verified_doi)
+                    if eid:
+                        df_work.at[idx, "ScopusId"] = eid
+
+                # Optional: PubMed PMID enrichment
+                if PUBMED_LOOKUP_FROM_VERIFIED_DOI and not row.get("PMID", "").strip():
+                    pmid = lookup_pmid_by_doi(best_verified_doi)
+                    if pmid:
+                        df_work.at[idx, "PMID"] = pmid
+
             elif best_possible_doi:
                 df_work.at[idx, "Possible DOI:s"] = best_possible_doi
                 df_work.at[idx, "Verified DOI"] = ""
@@ -690,10 +832,10 @@ def main():
             if df_links.at[df_idx, "Verified_DOI_link"]:
                 ws.write_url(row_xl, col_idx["Verified_DOI_link"],
                              df_links.at[df_idx, "Verified_DOI_link"], string="Verified DOI")
-            if df_links.at[df_idx, "ISI_link"]:
+            if "ISI_link" in col_idx and df_links.at[df_idx, "ISI_link"]:
                 ws.write_url(row_xl, col_idx["ISI_link"],
                              df_links.at[df_idx, "ISI_link"], string="ISI")
-            if df_links.at[df_idx, "Scopus_link"]:
+            if "Scopus_link" in col_idx and df_links.at[df_idx, "Scopus_link"]:
                 ws.write_url(row_xl, col_idx["Scopus_link"],
                              df_links.at[df_idx, "Scopus_link"], string="Scopus")
 
