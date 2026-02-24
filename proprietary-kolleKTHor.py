@@ -9,8 +9,8 @@ import urllib.parse
 
 # -------------------- CONFIG --------------------
 
-FROM_YEAR = 1999
-TO_YEAR = 1999
+FROM_YEAR = 2025
+TO_YEAR = 2025
 
 # which DiVA portal to use: e.g. "kth", "uu", "umu", "lnu", etc.
 DIVA_PORTAL = "kth"
@@ -26,7 +26,7 @@ NO_ID_ONLY = True     # records with no DOI, no ISI, no Scopus
 SIM_THRESHOLD = 0.9
 MAX_ACCEPTED = 9999
 CROSSREF_ROWS_PER_QUERY = 5
-MAILTO = "your@email"  # Your email address
+MAILTO = "email@domain.com"  # Your email address
 
 # Verification toggles
 VERIFY_USE_VOLUME = True
@@ -36,17 +36,17 @@ VERIFY_USE_ISSN = True       # any ISSN match
 VERIFY_USE_AUTHORS = True    # require at least one overlapping surname
 
 # Web of Science Starter API (optional)
-WOS_API_KEY = ""  # put your Clarivate Web of Science Starter API key here
+WOS_API_KEY = "*****"  # put your Clarivate Web of Science Starter API key here
 WOS_BASE_URL = "https://api.clarivate.com/apis/wos-starter/v1/documents"
 WOS_LOOKUP_FROM_VERIFIED_DOI = True  # toggle this off to disable WoS enrichment
 
 # Scopus Search API (optional)
-SCOPUS_API_KEY = ""  # Elsevier / Scopus API key
+SCOPUS_API_KEY = "*****"  # Elsevier / Scopus API key
 SCOPUS_BASE_URL = "https://api.elsevier.com/content/search/scopus"
 SCOPUS_LOOKUP_FROM_VERIFIED_DOI = True # toggle this off to disable Scopus enrichment
 
 NCBI_TOOL = "kolleKTHor"
-NCBI_EMAIL = "your@email"  # Your email address
+NCBI_EMAIL = "email@domain.com"  # Your email address
 PUBMED_LOOKUP_FROM_VERIFIED_DOI = True
 
 # Filenames: portal + year range (+ timestamp for outputs)
